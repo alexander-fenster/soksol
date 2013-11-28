@@ -44,6 +44,7 @@ struct queueitem {
 	unsigned char curr; // hi: x, lo: y
 	unsigned int prev;
 	unsigned char direction;
+	unsigned char score;
 };
 
 struct hashitem {
@@ -58,9 +59,11 @@ struct taskdata {
 	unsigned int queuecurr;
 	unsigned int queuealloc;
 	unsigned int M, N;
-	unsigned int xstart, ystart;
+	unsigned char xstart, ystart;
 	unsigned int solved;
 	unsigned int codelength;
+	unsigned char boxcount;
+	unsigned char maxscore;
 	struct hashitem *H[HASHSIZE];
 };
 
@@ -84,19 +87,6 @@ void hashtable_free(struct taskdata *data)
 			data->H[i] = p;
 		}
 	}
-}
-
-int check_solved(unsigned char field[NMAX][NMAX], struct taskdata *data) 
-{
-	unsigned int i, j;
-	for (i = 1; i <= data->M; i++) {
-		for (j = 1; j <= data->N; j++) {
-			if (field[j][i] & DEST && !(field[j][i] & BOX)) {
-				return 0;
-			}
-		}
-	}
-	return 1;
 }
 
 int empty(unsigned char c)
@@ -235,7 +225,7 @@ void enqueue_if_unique(struct queueitem *item, struct taskdata *data)
 	hitem->next = data->H[hcode];
 	data->H[hcode] = hitem;
 	if (data->queuesize % 100000 == 0) {
-		printf("queue size: %d, still working...\n", data->queuesize);
+		printf("queue size: %d, maximum score so far: %d, still working...\n", data->queuesize, data->maxscore);
 		fflush(stdout);
 	}
 	data->queuesize++;
@@ -288,7 +278,7 @@ void show_solution(unsigned char field[NMAX][NMAX], unsigned int prev, unsigned 
 	data->solved = 1;
 }
 
-void process_coords(unsigned char field[NMAX][NMAX], 
+void process_coords(unsigned char field[NMAX][NMAX], unsigned char score,
                     unsigned char x, unsigned char y, unsigned char nx, unsigned char ny, 
 		    unsigned int prev, unsigned char direction, struct taskdata *data)
 {
@@ -301,15 +291,12 @@ void process_coords(unsigned char field[NMAX][NMAX],
 		copy_field(tmpfield, field);
 		tmpfield[y][x] &= (~CURR);
 		tmpfield[ny][nx] |= CURR;
-		if (check_solved(tmpfield, data)) {
-			show_solution(tmpfield, prev, direction, data);
-			return;
-		}
 		next = malloc(sizeof(*next));
 		next->position = encode_position(tmpfield, data);
 		next->curr = encode_curr(nx, ny);
 		next->prev = prev;
 		next->direction = direction;
+		next->score = score;
 		enqueue_if_unique(next, data);
 	}
 	else if (field[ny][nx] & BOX) {
@@ -323,7 +310,16 @@ void process_coords(unsigned char field[NMAX][NMAX],
 			tmpfield[ny][nx] |= CURR;
 			tmpfield[ny][nx] &= (~BOX);
 			tmpfield[nexty][nextx] |= BOX;
-			if (check_solved(tmpfield, data)) {
+			if (tmpfield[ny][nx] & DEST) {
+				score--;
+			}
+			if (tmpfield[nexty][nextx] & DEST) {
+				score++;
+				if (score > data->maxscore) {
+					data->maxscore = score;
+				}
+			}
+			if (score == data->boxcount) {
 				show_solution(tmpfield, prev, direction, data);
 				return;
 			}
@@ -332,6 +328,7 @@ void process_coords(unsigned char field[NMAX][NMAX],
 			next->curr = encode_curr(nx, ny);
 			next->prev = prev;
 			next->direction = direction;
+			next->score = score;
 			enqueue_if_unique(next, data);
 		}
 	}
@@ -340,10 +337,26 @@ void process_coords(unsigned char field[NMAX][NMAX],
 void solve(unsigned char field[NMAX][NMAX], struct taskdata *data)
 {
 	struct queueitem *first;
+	unsigned int i, j;
+	unsigned char score = 0;
+
+	for (i = 1; i <= data->M; i++) {
+		for (j = 1; j <= data->N; j++) {
+			if (field[j][i] & DEST && field[j][i] & BOX) {
+				score++;
+			}
+		}
+	}
+
+	if (score == data->boxcount) {
+		printf("Nothing to solve.\n");
+		return;
+	}
 
 	data->codelength = data->N * data->M / 2 + (data->N * data->M) % 2;
 	first = malloc(sizeof(*first));
 	first->position = encode_position(field, data);
+	first->score = score;
 	first->curr = encode_curr(data->xstart, data->ystart);
 	first->prev = 0;
 	first->direction = START;
@@ -360,24 +373,24 @@ void solve(unsigned char field[NMAX][NMAX], struct taskdata *data)
 
 		// up
 		if (y > 1) {
-			process_coords(field, x, y, x, y - 1, queueidx, UP, data);
+			process_coords(field, item->score, x, y, x, y - 1, queueidx, UP, data);
 		}
 		// down
 		if (y < data->M) {
-			process_coords(field, x, y, x, y + 1, queueidx, DOWN, data);
+			process_coords(field, item->score, x, y, x, y + 1, queueidx, DOWN, data);
 		}
 		// left
 		if (x > 1) {
-			process_coords(field, x, y, x - 1, y, queueidx, LEFT, data);
+			process_coords(field, item->score, x, y, x - 1, y, queueidx, LEFT, data);
 		}
 		// right
 		if (x < data->N) {
-			process_coords(field, x, y, x + 1, y, queueidx, RIGHT, data);
+			process_coords(field, item->score, x, y, x + 1, y, queueidx, RIGHT, data);
 		}
 	}
 
 	if (!data->solved) {
-		printf("No solution.\n");
+		printf("No solution. Maximum score is %d.\n", data->maxscore);
 	}
 
 	queue_free(data);
@@ -472,6 +485,7 @@ void input(unsigned char field[NMAX][NMAX], struct taskdata *data)
 		printf("Number of boxes is not equal to number of destinations\n");
 		exit(1);
 	}
+	data->boxcount = boxcount;
 
 	if (data->xstart == NMAX) {
 		printf("Start point is not defined\n");
