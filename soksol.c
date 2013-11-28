@@ -47,7 +47,7 @@ struct queueitem {
 };
 
 struct hashitem {
-	int queueidx;
+	unsigned int queueidx;
 	struct hashitem *next;
 };
 #define HASHSIZE 313507 // just some prime number
@@ -57,17 +57,17 @@ struct taskdata {
 	unsigned int queuesize;
 	unsigned int queuecurr;
 	unsigned int queuealloc;
-	int M, N;
-	int xstart, ystart;
-	int solved;
-	int codelength;
+	unsigned int M, N;
+	unsigned int xstart, ystart;
+	unsigned int solved;
+	unsigned int codelength;
 	struct hashitem *H[HASHSIZE];
 };
 
 unsigned int hashcode(struct queueitem *item, struct taskdata *data)
 {
 	unsigned int result = item->curr;
-	int i;
+	unsigned int i;
 	for (i = 0; i < data->codelength; i++) {
 		result = result * 31 + item->position[i];
 	}
@@ -76,7 +76,7 @@ unsigned int hashcode(struct queueitem *item, struct taskdata *data)
 
 void hashtable_free(struct taskdata *data)
 {
-	int i;
+	unsigned int i;
 	for (i = 0; i < HASHSIZE; i++) {
 		while (data->H[i]) {
 			struct hashitem *p = data->H[i]->next;
@@ -88,7 +88,7 @@ void hashtable_free(struct taskdata *data)
 
 int check_solved(unsigned char field[NMAX][NMAX], struct taskdata *data) 
 {
-	int i, j;
+	unsigned int i, j;
 	for (i = 1; i <= data->M; i++) {
 		for (j = 1; j <= data->N; j++) {
 			if (field[j][i] & DEST && !(field[j][i] & BOX)) {
@@ -111,7 +111,7 @@ void copy_field(unsigned char dst[NMAX][NMAX], unsigned char src[NMAX][NMAX])
 
 void print_position(unsigned char field[NMAX][NMAX], struct taskdata *data)
 {
-	int i, j;
+	unsigned int i, j;
 	printf("+");
 	for (j = 1; j <= data->N; j++) {
 		printf("---+");
@@ -147,8 +147,8 @@ void print_position(unsigned char field[NMAX][NMAX], struct taskdata *data)
 unsigned char *encode_position(unsigned char field[NMAX][NMAX], struct taskdata *data)
 {
 	unsigned char *buffer = malloc(data->codelength);
-	int i, j;
-	int idx = 0;
+	unsigned int i, j;
+	unsigned int idx = 0;
 	int half = 0;
 	unsigned char value = 0;
 	for (i = 1; i <= data->M; i++) {
@@ -173,10 +173,10 @@ unsigned char *encode_position(unsigned char field[NMAX][NMAX], struct taskdata 
 
 void decode_position(unsigned char *buffer, unsigned char field[NMAX][NMAX], struct taskdata *data)
 {
-	int i, j;
+	unsigned int i, j;
 	int half = 0;
 	unsigned char value = 0;
-	int idx = 0;
+	unsigned int idx = 0;
 	for (i = 1; i <= data->M; i++) {
 		for (j = 1; j <= data->N; j++) {
 			if (half == 0) {
@@ -225,7 +225,7 @@ void enqueue_if_unique(struct queueitem *item, struct taskdata *data)
 		return;
 	}
 	if (data->queuesize == data->queuealloc) {
-		int newsize = data->queuealloc == 0 ? 1024 : 2 * data->queuealloc;
+		unsigned int newsize = data->queuealloc == 0 ? 1024 : 2 * data->queuealloc;
 		data->queue = realloc(data->queue, sizeof(*data->queue) * newsize); // memory errors? don't care
 		data->queuealloc = newsize;
 	}
@@ -241,7 +241,7 @@ void enqueue_if_unique(struct queueitem *item, struct taskdata *data)
 	data->queuesize++;
 }
 
-void dequeue(struct queueitem **item, int *idx, struct taskdata *data)
+void dequeue(struct queueitem **item, unsigned int *idx, struct taskdata *data)
 {
 	*idx = data->queuecurr;
 	*item = data->queue[data->queuecurr];
@@ -264,19 +264,19 @@ void queue_free(struct taskdata *data)
 	free(data->queue);
 }
 
-void show_solution(unsigned char field[NMAX][NMAX], int prev, unsigned char dir, struct taskdata *data)
+void show_solution(unsigned char field[NMAX][NMAX], unsigned int prev, unsigned char dir, struct taskdata *data)
 {
-	int *indices = malloc(data->queuesize * sizeof(int));
+	unsigned int *indices = malloc(data->queuesize * sizeof(unsigned int));
 	unsigned char tmpfield[NMAX][NMAX];
-	int length = 0;
-	int i;
-	while (prev != -1) {
-		indices[length] = prev;
-		length++;
+	unsigned int length = 0;
+	unsigned int i, curr;
+	do {
+		indices[length++] = prev;
+		curr = prev;
 		prev = data->queue[prev]->prev;
-	}
+	} while (prev != curr);
 	printf("Solution found! %d steps.\n", length);
-	for (i = 0, length-- ; length >= 0; i++, length--) {
+	for (i = 0; length-- > 0; i++) {
 		printf("======== Step %3d ======== %s\n", i, direction(data->queue[indices[length]]->direction));
 		decode_position(data->queue[indices[length]]->position, tmpfield, data);
 		print_position(tmpfield, data);
@@ -290,7 +290,7 @@ void show_solution(unsigned char field[NMAX][NMAX], int prev, unsigned char dir,
 
 void process_coords(unsigned char field[NMAX][NMAX], 
                     unsigned char x, unsigned char y, unsigned char nx, unsigned char ny, 
-		    int prev, unsigned char direction, struct taskdata *data)
+		    unsigned int prev, unsigned char direction, struct taskdata *data)
 {
 	static unsigned char tmpfield[NMAX][NMAX];
 	struct queueitem *next;
@@ -345,13 +345,13 @@ void solve(unsigned char field[NMAX][NMAX], struct taskdata *data)
 	first = malloc(sizeof(*first));
 	first->position = encode_position(field, data);
 	first->curr = encode_curr(data->xstart, data->ystart);
-	first->prev = -1;
+	first->prev = 0;
 	first->direction = START;
 
 	enqueue_if_unique(first, data);
 	while (!queue_empty(data) && !data->solved) {
 		struct queueitem *item;
-		int queueidx;
+		unsigned int queueidx;
 		unsigned char x, y;
 
 		dequeue(&item, &queueidx, data);
@@ -386,9 +386,9 @@ void solve(unsigned char field[NMAX][NMAX], struct taskdata *data)
 
 void input(unsigned char field[NMAX][NMAX], struct taskdata *data)
 {
-	int i, j;
-	int boxcount = 0;
-	int destcount = 0;
+	unsigned int i, j;
+	unsigned int boxcount = 0;
+	unsigned int destcount = 0;
 	FILE *f;
 
 	for (i = 0; i < NMAX; i++) {
