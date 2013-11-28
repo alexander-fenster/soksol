@@ -210,7 +210,6 @@ int differ(unsigned char *buffer1, unsigned char *buffer2, struct taskdata *data
 
 void enqueue_if_unique(struct queueitem *item, struct taskdata *data)
 {
-	int i;
 	unsigned int hcode = hashcode(item, data);
 	struct hashitem *hitem;
 	for (hitem = data->H[hcode]; hitem; hitem = hitem->next) {
@@ -256,7 +255,7 @@ int queue_empty(struct taskdata *data)
 
 void queue_free(struct taskdata *data)
 {
-	int i;
+	unsigned int i;
 	printf("final queue size: %d\n", data->queuesize);
 	for (i = 0; i < data->queuesize; i++) {
 		free(data->queue[i]->position);
@@ -316,8 +315,8 @@ void process_coords(unsigned char field[NMAX][NMAX],
 	else if (field[ny][nx] & BOX) {
 		char dx = nx - x;
 		char dy = ny - y;
-		char nextx = x + dx + dx;
-		char nexty = y + dy + dy;
+		unsigned char nextx = x + dx + dx;
+		unsigned char nexty = y + dy + dy;
 		if (empty(field[nexty][nextx])) {
 			copy_field(tmpfield, field);
 			tmpfield[y][x] &= (~CURR);
