@@ -15,6 +15,7 @@ Input file format:
 
 The first two numbers define number of rows and columns in the field.
 The field is defined in the following way:
+```
 - # for the wall
 - . for the empty cell
 - o for the destination cell
@@ -22,5 +23,6 @@ The field is defined in the following way:
 - X for the block in the destination cell
 - s for the start position
 - S for the start position in the destination cell
+```
 
 Everything after the field is ignored.
